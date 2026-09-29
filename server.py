@@ -129,7 +129,7 @@ def admin_delete():
     save_keys(keys)
     return admin_index()
 
-# ================= 클라이언트 연동용 API (404 방지 핵심) =================
+# ================= 클라이언트 연동용 API (404 방지 핵심 코드) =================
 @app.route('/api/verify', methods=['POST'])
 def verify_key():
     data = request.get_json(silent=True)
