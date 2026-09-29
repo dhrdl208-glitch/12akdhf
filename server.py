@@ -19,9 +19,8 @@ except ImportError:
 LICENSE_FILE = "license.json"
 is_running = False
 
-# ================= 서버 주소 설정 (본인의 실제 렌더 주소로 수정해주세요!) =================
-# 예시: "https://랜덤이름.onrender.com/api/verify"
-SERVER_URL = "https://여기에_본인의_실제_렌더_주소_입력.onrender.com/api/verify"
+# ================= 서버 주소 설정 (적용 완료!) =================
+SERVER_URL = "https://one2akdhf.onrender.com/api/verify"
 
 # ================= 테마 컬러 설정 =================
 BG_COLOR = "#f8fafc"
