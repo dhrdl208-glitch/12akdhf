@@ -1,74 +1,74 @@
-from flask import Flask, request, jsonify, render_template_string
-import datetime
 import os
 import json
-import random
-import string
+import datetime
+from flask import Flask, request, jsonify, render_template_string
 
 app = Flask(__name__)
+
+# 키를 저장할 파일명
 KEYS_FILE = "server_keys.json"
 
-# 관리자 HTML을 서버 내부에 포함시켜 접속 오류 원천 차단
-ADMIN_HTML = """
+def load_keys():
+    if not os.path.exists(KEYS_FILE):
+        return []
+    try:
+        with open(KEYS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except:
+        return []
+
+def save_keys(keys):
+    try:
+        with open(KEYS_FILE, "w", encoding="utf-8") as f:
+            json.dump(keys, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        print(f"키 저장 에러: {e}")
+
+# 관리자 웹 페이지 UI HTML
+HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>이상봇 관리자 - 원격 라이선스 키 생성기</title>
+    <title>이상봇 - 원격 키 관리자</title>
     <style>
-        :root {
-            --primary: #6366f1;
-            --primary-hover: #4f46e5;
-            --bg-color: #f8fafc;
-            --card-bg: #ffffff;
-            --text-main: #0f172a;
-            --text-sub: #64748b;
-            --border: #e2e8f0;
-        }
-        body { font-family: 'Pretendard', sans-serif; background-color: var(--bg-color); color: var(--text-main); margin: 0; padding: 40px 20px; display: flex; justify-content: center; }
-        .container { background: var(--card-bg); padding: 35px; border-radius: 16px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05); width: 100%; max-width: 650px; border: 1px solid var(--border); box-sizing: border-box; }
-        h2 { color: var(--text-main); text-align: center; margin-top: 0; margin-bottom: 24px; font-size: 22px; font-weight: 700; }
+        body { font-family: 'Pretendard', sans-serif; background: #f8fafc; margin: 0; padding: 40px; color: #0f172a; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+        h2 { color: #4f46e5; margin-top: 0; }
         .form-group { margin-bottom: 20px; }
-        label { display: block; margin-bottom: 8px; font-weight: 600; color: var(--text-sub); font-size: 13px; }
-        select, input[type="text"] { width: 100%; padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px; box-sizing: border-box; font-size: 14px; background-color: #f8fafc; color: var(--text-main); }
-        button.gen-btn { width: 100%; background-color: var(--primary); color: white; font-weight: 600; cursor: pointer; padding: 14px; border-radius: 8px; font-size: 15px; border: none; transition: background-color 0.2s; }
-        button.gen-btn:hover { background-color: var(--primary-hover); }
-        .list-section { margin-top: 35px; border-top: 1px solid var(--border); padding-top: 25px; }
-        table { width: 100%; border-collapse: collapse; font-size: 14px; }
-        th, td { padding: 12px; text-align: center; border-bottom: 1px solid var(--border); }
-        th { background-color: #f1f5f9; color: var(--text-sub); font-weight: 600; }
-        .key-cell { font-family: 'Consolas', monospace; font-weight: 600; color: var(--primary); }
-        .badge { display: inline-block; padding: 4px 8px; background-color: #e0e7ff; color: #4338ca; border-radius: 6px; font-size: 12px; font-weight: 600; }
-        .del-btn { background-color: #fee2e2; color: #ef4444; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; }
-        .del-btn:hover { background-color: #fecaca; }
-        .empty-row { color: var(--text-sub); padding: 25px !important; }
+        label { display: block; font-weight: bold; margin-bottom: 8px; font-size: 14px; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; }
+        button { background: #4f46e5; color: white; border: none; padding: 12px 20px; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; width: 100%; }
+        button:hover { background: #4338ca; }
+        table { width: 100%; border-collapse: collapse; margin-top: 30px; }
+        th, td { border-bottom: 1px solid #e2e8f0; padding: 12px; text-align: left; font-size: 14px; }
+        th { background: #f1f5f9; color: #334155; }
+        .btn-delete { background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
+        .btn-delete:hover { background: #dc2626; }
     </style>
 </head>
 <body>
+    <div class="container">
+        <h2>⚡ 이상봇 원격 키 관리자</h2>
+        <form method="POST" action="/create">
+            <div class="form-group">
+                <label>구매자 이름 (메모)</label>
+                <input type="text" name="memo" placeholder="예: 홍길동 (30일 구매)" required>
+            </div>
+            <div class="form-group">
+                <label>사용 기간 선택</label>
+                <select name="days">
+                    <option value="1">1일 체험판</option>
+                    <option value="7">7일권</option>
+                    <option value="30" selected>30일권</option>
+                    <option value="90">90일권</option>
+                    <option value="365">1년권 (365일)</option>
+                </select>
+            </div>
+            <button type="submit">라이선스 키 생성 및 서버 저장</button>
+        </form>
 
-<div class="container">
-    <h2>⚡ 이상봇 원격 키 관리자</h2>
-    
-    <div class="form-group">
-        <label for="buyer">구매자 이름 (메모)</label>
-        <input type="text" id="buyer" placeholder="예: 홍길동 (30일 구매)">
-    </div>
-
-    <div class="form-group">
-        <label for="period">사용 기간 선택</label>
-        <select id="period">
-            <option value="1">1일 체험판</option>
-            <option value="7">7일권</option>
-            <option value="30" selected>30일권 (한 달)</option>
-            <option value="90">90일권 (3개월)</option>
-            <option value="365">365일권 (1년)</option>
-        </select>
-    </div>
-    
-    <button class="gen-btn" onclick="generateKey()">라이선스 키 생성 및 서버 저장</button>
-
-    <div class="list-section">
-        <h3>서버에 발급된 키 목록</h3>
+        <h3 style="margin-top: 40px;">서버에 발급된 키 목록</h3>
         <table>
             <thead>
                 <tr>
@@ -78,127 +78,87 @@ ADMIN_HTML = """
                     <th>관리</th>
                 </tr>
             </thead>
-            <tbody id="keyListBody">
-                <!-- 동적 로드 -->
+            <tbody>
+                {% for item in keys %}
+                <tr>
+                    <td>{{ item.memo }}</td>
+                    <td><code>{{ item.key }}</code></td>
+                    <td>{{ item.days }}일</td>
+                    <td>
+                        <form action="/delete" method="POST" style="margin:0;">
+                            <input type="hidden" name="key" value="{{ item.key }}">
+                            <button type="submit" class="btn-delete">삭제</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
             </tbody>
         </table>
     </div>
-</div>
-
-<script>
-    window.onload = function() { loadKeys(); };
-
-    async function loadKeys() {
-        try {
-            const res = await fetch('/api/keys');
-            const keys = await res.json();
-            const keyListBody = document.getElementById("keyListBody");
-            keyListBody.innerHTML = "";
-
-            if (keys.length === 0) {
-                keyListBody.innerHTML = `<tr><td colspan="4" class="empty-row">생성된 키가 없습니다.</td></tr>`;
-                return;
-            }
-
-            keys.forEach((item, index) => {
-                let row = `<tr>
-                    <td><strong>${item.buyer}</strong></td>
-                    <td class="key-cell">${item.key}</td>
-                    <td><span class="badge">${item.days}</span></td>
-                    <td><button class="del-btn" onclick="deleteKey(${index})">삭제</button></td>
-                </tr>`;
-                keyListBody.innerHTML += row;
-            });
-        } catch (e) {
-            alert("서버 통신 오류!");
-        }
-    }
-
-    async function generateKey() {
-        const buyerInput = document.getElementById("buyer").value.trim();
-        const days = document.getElementById("period").value;
-        if (!buyerInput) { alert("구매자 이름을 입력해 주세요!"); return; }
-
-        await fetch('/api/generate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ buyer: buyerInput, days: days })
-        });
-        document.getElementById("buyer").value = "";
-        loadKeys();
-    }
-
-    async function deleteKey(index) {
-        if (confirm("이 키를 서버에서 삭제하시겠습니까? (즉시 프로그램 인증이 차단됩니다)")) {
-            await fetch('/api/delete', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ index: index })
-            });
-            loadKeys();
-        }
-    }
-</script>
 </body>
 </html>
 """
 
-def load_keys():
-    if not os.path.exists(KEYS_FILE): return []
-    try:
-        with open(KEYS_FILE, "r", encoding="utf-8") as f: return json.load(f)
-    except: return []
-
-def save_keys(keys):
-    with open(KEYS_FILE, "w", encoding="utf-8") as f: json.dump(keys, f, ensure_ascii=False, indent=4)
-
+# ================= 관리자 웹 페이지 라우트 =================
 @app.route('/')
-def index():
-    return render_template_string(ADMIN_HTML)
-
-@app.route('/api/keys', methods=['GET'])
-def get_keys(): return jsonify(load_keys())
-
-@app.route('/api/generate', methods=['POST'])
-def generate_key():
-    data = request.json
-    buyer, days = data.get('buyer'), int(data.get('days'))
-    random_str = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4)) + "-" + ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
-    license_key = f"ISANG-{days}-{random_str}"
+def admin_index():
     keys = load_keys()
-    new_key = {"buyer": buyer, "key": license_key, "days": f"{days}일"}
-    keys.insert(0, new_key)
+    return render_template_string(HTML_TEMPLATE, keys=keys)
+
+@app.route('/create', methods=['POST'])
+def admin_create():
+    memo = request.form.get('memo', '미확인')
+    days = request.form.get('days', '30')
+    
+    import random, string
+    random_part1 = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
+    random_part2 = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
+    new_key = f"ISANG-{days}-{random_part1}-{random_part2}"
+    
+    keys = load_keys()
+    keys.append({"key": new_key, "memo": memo, "days": days})
     save_keys(keys)
-    return jsonify({"success": True, "key": new_key})
+    
+    return admin_index()
 
-@app.route('/api/delete', methods=['POST'])
-def delete_key():
-    data = request.json
-    index = data.get('index')
+@app.route('/delete', methods=['POST'])
+def admin_delete():
+    target_key = request.form.get('key')
     keys = load_keys()
-    if 0 <= index < len(keys):
-        keys.pop(index)
-        save_keys(keys)
-        return jsonify({"success": True})
-    return jsonify({"success": False})
+    keys = [item for item in keys if item['key'] != target_key]
+    save_keys(keys)
+    return admin_index()
 
+# ================= 클라이언트 연동용 API (404 방지 핵심) =================
 @app.route('/api/verify', methods=['POST'])
 def verify_key():
-    data = request.json
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"success": False, "message": "Invalid JSON"}), 400
+    
     input_key = data.get('key', '').strip()
     keys = load_keys()
-    found, days = False, 0
+    
+    found_item = None
     for item in keys:
         if item['key'] == input_key:
-            found = True
-            days = int(item['days'].replace('일', ''))
+            found_item = item
             break
-    if found:
+            
+    if found_item:
+        try:
+            days = int(found_item['days'])
+        except:
+            days = 30
+            
         expiry = datetime.datetime.now() + datetime.timedelta(days=days)
-        return jsonify({"success": True, "expiry": expiry.strftime("%Y-%m-%d %H:%M:%S")})
-    return jsonify({"success": False})
+        return jsonify({
+            "success": True, 
+            "expiry": expiry.strftime("%Y-%m-%d %H:%M:%S")
+        })
+    
+    return jsonify({"success": False, "message": "Key not found"})
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
-    print(f"⚡ 이상봇 원격 서버가 시작되었습니다! 포트: {port}")
-    app.run(host='0.0.0.0', port=port)
+    app.run(host="0.0.0.0", port=port)
