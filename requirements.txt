@@ -1,7 +1,4 @@
-flask
-pymongo
-gunicorn
-requests
-pyautogui
-pyperclip
-pygetwindow
+Flask
+pymongo[srv]
+dnspython
+certifi
