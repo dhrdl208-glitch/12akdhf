@@ -1,3 +1,6 @@
-Flask
-gunicorn
+flask
+pymongo
 requests
+pyautogui
+pyperclip
+pygetwindow
