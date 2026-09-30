@@ -5,8 +5,11 @@ from datetime import datetime
 
 app = Flask(__name__)
 
-# Render 환경 변수에서 MONGO_URI 안전하게 가져오기 (공백 제거)
-MONGO_URI = os.environ.get("MONGO_URI", "").strip()
+# MongoDB 연결 주소 설정 (환경 변수 또는 직접 입력 방식 지원)
+# 비밀번호의 <db_password> 부분을 실제 비밀번호로 변경하세요.
+DEFAULT_MONGO_URI = "mongodb+srv://dhrdl2064_db_user:<db_password>@cluster0.gnatjls.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+MONGO_URI = os.environ.get("MONGO_URI", DEFAULT_MONGO_URI).strip()
+
 client = MongoClient(MONGO_URI)
 db = client["license_db"]
 licenses_collection = db["licenses"]
