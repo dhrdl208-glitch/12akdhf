@@ -2,174 +2,121 @@ from flask import Flask, request, jsonify, render_template_string
 from pymongo import MongoClient
 import datetime
 import os
-import random
-import string
 
 app = Flask(__name__)
 
-# ================= 몽고디비 연결 설정 =================
-MONGO_URI = "mongodb+srv://dhrdl208_db_user:d4RRoJj5wRlT4jNL@12akdhf.nmzycuh.mongodb.net/?retryWrites=true&w=majority&appName=12akdhf"
-
+# MongoDB Atlas 연결 설정 (본인의 MongoDB URI로 변경하세요)
+MONGO_URI = os.getenv("MONGO_URI", "여기에_MONGODB_URI를_입력하세요")
 client = MongoClient(MONGO_URI)
-db = client["license_db"]
-licenses_col = db["licenses"]
+db = client["ggatalk_db"]
+licenses_collection = db["licenses"]
 
-# ================= 관리자 웹페이지 HTML (UI) =================
+# 관리자 웹 대시보드 HTML 템플릿
 ADMIN_HTML = """
 <!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>이상봇 관리자 센터</title>
+    <title>이상봇 라이선스 관리자</title>
     <style>
-        body { font-family: 'Pretendard', sans-serif; background: #f8fafc; margin: 0; padding: 40px; color: #0f172a; }
-        .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        h2 { color: #4f46e5; margin-top: 0; }
-        .form-group { margin-bottom: 20px; }
-        label { display: block; margin-bottom: 8px; font-weight: bold; font-size: 14px; }
-        input, select { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 14px; }
-        button { background: #4f46e5; color: white; border: none; padding: 12px 20px; border-radius: 6px; cursor: pointer; font-size: 15px; font-weight: bold; width: 100%; }
-        button:hover { background: #4338ca; }
-        .result-box { margin-top: 20px; padding: 15px; background: #e0e7ff; border-radius: 6px; word-break: break-all; font-family: monospace; font-size: 16px; color: #3730a3; display: none; }
-        hr { border: 0; border-top: 1px solid #e2e8f0; margin: 30px 0; }
-        .list-item { background: #f1f5f9; padding: 10px 15px; border-radius: 6px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+        body { font-family: 'Pretendard', sans-serif; background: #f8fafc; margin: 0; padding: 20px; color: #0f172a; }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        h2 { color: #4f46e5; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 12px; border-bottom: 1px solid #e2e8f0; text-align: left; font-size: 14px; }
+        th { background: #f1f5f9; }
+        .btn-del { background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
+        .btn-add { background: #4f46e5; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        input { padding: 8px; width: 200px; border: 1px solid #cbd5e1; border-radius: 4px; margin-right: 8px; }
+        .form-group { margin-top: 20px; background: #f8fafc; padding: 15px; border-radius: 6px; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h2>⚡ 이상봇 관리자 센터</h2>
-        <p style="color: #64748b; font-size: 14px;">인증 키를 직접 생성하고 기간을 관리하세요.</p>
-        
-        <div class="form-group">
-            <label for="days">사용 기간 선택</label>
-            <select id="days">
-                <option value="1">1일권</option>
-                <option value="7">7일권</option>
-                <option value="30" selected>30일권 (한 달)</option>
-                <option value="365">365일권 (1년)</option>
-            </select>
-        </div>
-        
-        <button onclick="createKey()">새로운 인증 키 생성하기</button>
-        
-        <div id="resultBox" class="result-box"></div>
-
-        <hr>
-        
-        <h3>등록된 키 목록</h3>
-        <div id="keyList">
-            <!-- 동적 로드 -->
-        </div>
+<div class="container">
+    <h2>⚡ 이상봇 라이선스 관리 대시보드</h2>
+    
+    <div class="form-group">
+        <h3>새 라이선스 발급</h3>
+        <form action="/admin/add" method="POST">
+            <input type="text" name="key" placeholder="발급할 라이선스 키" required>
+            <input type="text" name="buyer" placeholder="구매자 이름 / 연락처" required>
+            <button type="submit" class="btn-add">키 생성 및 등록</button>
+        </form>
     </div>
 
-    <script>
-        async function createKey() {
-            const days = document.getElementById('days').value;
-            const response = await fetch('/api/admin/create', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ days: parseInt(days) })
-            });
-            const data = await response.json();
-            if (data.success) {
-                const box = document.getElementById('resultBox');
-                box.style.display = 'block';
-                box.innerHTML = `<b>생성된 키:</b> ${data.key}<br><b>만료일:</b> ${data.expiry}`;
-                loadKeys();
-            } else {
-                alert('생성 실패: ' + data.message);
-            }
-        }
-
-        async function loadKeys() {
-            const response = await fetch('/api/admin/list');
-            const data = await response.json();
-            const listDiv = document.getElementById('keyList');
-            listDiv.innerHTML = '';
-            if (data.keys && data.keys.length > 0) {
-                data.keys.forEach(item => {
-                    listDiv.innerHTML += `<div class="list-item"><span><b>${item.key}</b></span><span style="color:#64748b;">만료: ${item.expiry}</span></div>`;
-                });
-            } else {
-                listDiv.innerHTML = '<p style="color:#64748b; font-size:13px;">등록된 키가 없습니다.</p>';
-            }
-        }
-
-        loadKeys();
-    </script>
+    <h3>등록된 라이선스 목록</h3>
+    <table>
+        <tr>
+            <th>라이선스 키</th>
+            <th>구매자</th>
+            <th>만료일시</th>
+            <th>상태</th>
+            <th>관리</th>
+        </tr>
+        {% for lic in licenses %}
+        <tr>
+            <td><code>{{ lic.key }}</code></td>
+            <td>{{ lic.buyer }}</td>
+            <td>{{ lic.expiry }}</td>
+            <td><span style="color: {{ 'green' if lic.active else 'red' }};">{{ '사용 가능' if lic.active else '차단됨(삭제됨)' }}</span></td>
+            <td>
+                <form action="/admin/delete/{{ lic.key }}" method="POST" style="margin:0;">
+                    <button type="submit" class="btn-del">삭제/차단</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
 </body>
 </html>
 """
 
-# ================= 관리자 웹페이지 라우트 =================
-@app.route('/')
-def admin_panel():
-    return render_template_string(ADMIN_HTML)
+@app.route("/admin", methods=["GET"])
+def admin_page():
+    licenses = list(licenses_collection.find())
+    return render_template_string(ADMIN_HTML, licenses=licenses)
 
-# ================= 키 생성 API (관리자용) =================
-@app.route('/api/admin/create', methods=['POST'])
-def admin_create_key():
-    data = request.get_json()
-    days = data.get("days", 30) if data else 30
+@app.route("/admin/add", methods=["POST"])
+def admin_add():
+    key = request.form.get("key").strip()
+    buyer = request.form.get("buyer").strip()
+    # 기본 만료일 30일 뒤로 설정 (필요시 수정 가능)
+    expiry = (datetime.datetime.now() + datetime.timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
     
-    # 랜덤 인증 키 생성 (예: ISANG-XXXX-XXXX-XXXX)
-    random_str = ''.join(random.choices(string.ascii_uppercase + string.digits, k=12))
-    new_key = f"ISANG-{random_str[:4]}-{random_str[4:8]}-{random_str[8:]}"
-    
-    # 만료일 계산
-    expiry_date = datetime.datetime.now() + datetime.timedelta(days=days)
-    expiry_str = expiry_date.strftime("%Y-%m-%d %H:%M:%S")
-    
-    try:
-        licenses_col.insert_one({
-            "key": new_key,
-            "expiry": expiry_str,
-            "created_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        })
-        return jsonify({"success": True, "key": new_key, "expiry": expiry_str})
-    except Exception as e:
-        return jsonify({"success": False, "message": str(e)})
+    if key:
+        licenses_collection.update_one(
+            {"key": key},
+            {"$set": {"key": key, "buyer": buyer, "expiry": expiry, "active": True}},
+            upsert=True
+        )
+    return admin_page()
 
-# ================= 키 목록 조회 API (관리자용) =================
-@app.route('/api/admin/list', methods=['GET'])
-def admin_list_keys():
-    try:
-        keys_cursor = licenses_col.find().sort("_id", -1).limit(20) # 최근 20개
-        keys_list = []
-        for doc in keys_cursor:
-            keys_list.append({
-                "key": doc.get("key"),
-                "expiry": doc.get("expiry")
-            })
-        return jsonify({"success": True, "keys": keys_list})
-    except Exception as e:
-        return jsonify({"success": False, "keys": []})
+@app.route("/admin/delete/<key>", methods=["POST"])
+def admin_delete(key):
+    # 키를 완전히 삭제하거나 active를 False로 만들어 프로그램 연결을 원천 차단
+    licenses_collection.update_one({"key": key}, {"$set": {"active": False}})
+    return admin_page()
 
-# ================= 클라이언트 봇용 인증 API =================
-@app.route('/api/verify', methods=['POST'])
-def verify_api():
-    data = request.get_json()
-    if not data or "key" not in data:
-        return jsonify({"success": False, "message": "잘못된 요청입니다."}), 400
+# 프로그램(이상봇)에서 호출하는 검증 API
+@app.route("/api/verify", methods=["POST"])
+def api_verify():
+    data = request.json
+    key = data.get("key", "").strip()
     
-    input_key = data.get("key").strip()
-    if not input_key:
-        return jsonify({"success": False, "message": "키를 입력해주세요."})
+    lic = licenses_collection.find_one({"key": key})
     
-    try:
-        doc = licenses_col.find_one({"key": input_key})
-        if doc:
-            expiry_str = doc.get("expiry")
-            expiry_dt = datetime.datetime.strptime(expiry_str, "%Y-%m-%d %H:%M:%S")
-            if expiry_dt > datetime.datetime.now():
-                return jsonify({"success": True, "expiry": expiry_str})
-            else:
-                return jsonify({"success": False, "message": "사용 기간이 만료된 인증 키입니다."})
-        else:
-            return jsonify({"success": False, "message": "유효하지 않거나 삭제된 인증 키입니다."})
-    except Exception as e:
-        return jsonify({"success": False, "message": f"서버 오류: {str(e)}"})
+    if not lic:
+        return jsonify({"success": False, "message": "존재하지 않는 라이선스 키입니다."}), 400
+    
+    if not lic.get("active", True):
+        return jsonify({"success": False, "message": "관리자에 의해 삭제되거나 차단된 라이선스입니다."}), 403
+        
+    return jsonify({
+        "success": True,
+        "expiry": lic.get("expiry"),
+        "buyer": lic.get("buyer")
+    })
 
-if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
